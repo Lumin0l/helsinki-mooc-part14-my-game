@@ -47,7 +47,7 @@ class Game:
             elif event.type == pygame.USEREVENT:
                 self.spawn_door()
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_w:
+                if event.key == pygame.K_SPACE:
                     self.shoot_coin()
     
     def update(self):
@@ -64,7 +64,7 @@ class Game:
             if coin.check_collision(self.monsters):
                 self.monsters.remove(coin.target)
                 self.coins.remove(coin)
-            elif coin.check_collision_with_player(self.player):
+            if coin.check_collision_with_player(self.player):
                 self.player.coins += 1
                 self.coins.remove(coin)
         # Increase monster limit every 30 seconds
@@ -93,7 +93,7 @@ class Game:
     
     def shoot_coin(self):
         if self.player.coins > 0:
-            angle = self.player.arrow_angle
+            angle = self.player .arrow_angle
             self.coins.append(Coin(self.player.x, self.player.y, angle))
             self.player.coins -= 1
     
@@ -200,27 +200,37 @@ class Coin:
         self.x = x
         self.y = y
         self.angle = angle
-        self.speed = COIN_SPEED
+        self.speed_x = COIN_SPEED * math.cos(math.radians(angle))
+        self.speed_y = COIN_SPEED * math.sin(math.radians(angle))
         self.image = pygame.image.load("coin.png")
-    
+
     def update(self):
-        self.x += self.speed * math.cos(math.radians(self.angle))
-        self.y += self.speed * math.sin(math.radians(self.angle))
-        
-        if self.x <= 0 or self.x >= WIDTH - 20:
-            self.speed = -self.speed
-        if self.y <= 0 or self.y >= HEIGHT - 20:
-            self.speed = -self.speed
-    
+        self.x += self.speed_x
+        self.y += self.speed_y
+
+        # Bounce off walls correctly
+        if self.x <= 0 or self.x >= WIDTH - self.image.get_width():
+            self.speed_x = -self.speed_x
+        if self.y <= 0 or self.y >= HEIGHT - self.image.get_height():
+            self.speed_y = -self.speed_y
+
     def check_collision(self, monsters):
         for monster in monsters:
             if abs(self.x - monster.x) < 20 and abs(self.y - monster.y) < 20:
                 self.target = monster
                 return True
         return False
-    
+
+    def check_collision_with_player(self, player):
+        """ Returns True if the coin collides with the player. """
+        return (
+            abs(self.x - player.x) < 20 and
+            abs(self.y - player.y) < 20
+        )
+
     def draw(self, window):
         window.blit(self.image, (self.x, self.y))
+
 
 if __name__ == "__main__":
     game = Game()
