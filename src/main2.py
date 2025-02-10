@@ -108,24 +108,109 @@ class Game:
         else:
             return WIDTH - 40, random.randint(0, HEIGHT)
 
+class Door:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.spawn_time = pygame.time.get_ticks()
+        self.image = pygame.image.load("door.png")
+    
+    def update(self):
+        pass  # No movement or logic needed for the door itself
+    
+    def timer_expired(self):
+        return pygame.time.get_ticks() - self.spawn_time >= DOOR_LIFETIME
+    
+    def draw(self, window):
+        window.blit(self.image, (self.x, self.y))
+
+class Player:
+    def __init__(self, x, y):
+        self.robot = pygame.image.load("robot.png")
+        self.robot_width = self.robot.get_width()
+        self.robot_height = self.robot.get_height()
+        self.x = x - self.robot_width // 2
+        self.y = y - self.robot_height // 2
+        self.arrow_angle = 0
+        self.coins = 10
+    
+    def update(self):
+        keys = pygame.key.get_pressed()
+        
+        # Player movement logic
+        if keys[pygame.K_LEFT] and self.x > 0:
+            self.x -= PLAYER_SPEED
+        if keys[pygame.K_RIGHT] and self.x < WIDTH - self.robot_width:
+            self.x += PLAYER_SPEED
+        if keys[pygame.K_UP] and self.y > 0:
+            self.y -= PLAYER_SPEED
+        if keys[pygame.K_DOWN] and self.y < HEIGHT - self.robot_height:
+            self.y += PLAYER_SPEED
+        
+        # Aim arrow rotation logic
+        if keys[pygame.K_a]:
+            self.arrow_angle -= ROTATION_SPEED
+        if keys[pygame.K_d]:
+            self.arrow_angle += ROTATION_SPEED
+    
+    def draw(self, window):
+        window.blit(self.robot, (self.x, self.y))
+        
+        # Calculate arrow position
+        arrow_x = self.x + self.robot_width // 2 + ARROW_LENGTH * math.cos(math.radians(self.arrow_angle))
+        arrow_y = self.y + self.robot_height // 2 + ARROW_LENGTH * math.sin(math.radians(self.arrow_angle))
+        
+        pygame.draw.line(window, (255, 255, 255),
+                         (self.x + self.robot_width // 2, self.y + self.robot_height // 2),
+                         (arrow_x, arrow_y), 3)
+        
+class Monster:
+    def __init__(self, x, y, behavior):
+        self.x = x
+        self.y = y
+        self.speed = random.randint(*MONSTER_SPEED_RANGE)
+        self.behavior = behavior
+        self.image = pygame.image.load("monster.png")
+        self.dx = random.choice([-1, 1]) * self.speed
+        self.dy = random.choice([-1, 1]) * self.speed
+    
+    def update(self, player_x, player_y):
+        if self.behavior == "chase":
+            if self.x < player_x:
+                self.x += self.speed
+            elif self.x > player_x:
+                self.x -= self.speed
+            if self.y < player_y:
+                self.y += self.speed
+            elif self.y > player_y:
+                self.y -= self.speed
+        else:
+            if self.x <= 0 or self.x >= WIDTH - 40:
+                self.dx = -self.dx
+            if self.y <= 0 or self.y >= HEIGHT - 40:
+                self.dy = -self.dy
+            self.x += self.dx
+            self.y += self.dy
+    
+    def draw(self, window):
+        window.blit(self.image, (self.x, self.y))
+
 class Coin:
     def __init__(self, x, y, angle):
         self.x = x
         self.y = y
         self.angle = angle
-        self.speed_x = COIN_SPEED * math.cos(math.radians(angle))
-        self.speed_y = COIN_SPEED * math.sin(math.radians(angle))
+        self.speed = COIN_SPEED
         self.image = pygame.image.load("coin.png")
     
     def update(self):
-        self.x += self.speed_x
-        self.y += self.speed_y
+        self.x += self.speed * math.cos(math.radians(self.angle))
+        self.y += self.speed * math.sin(math.radians(self.angle))
         
-        # Bounce off walls
         if self.x <= 0 or self.x >= WIDTH - 20:
-            self.speed_x = -self.speed_x
+            self.speed = -self.speed
         if self.y <= 0 or self.y >= HEIGHT - 20:
-            self.speed_y = -self.speed_y
+            self.speed = -self.speed
     
     def check_collision(self, monsters):
         for monster in monsters:
@@ -133,9 +218,6 @@ class Coin:
                 self.target = monster
                 return True
         return False
-    
-    def check_collision_with_player(self, player):
-        return abs(self.x - player.x) < 20 and abs(self.y - player.y) < 20
     
     def draw(self, window):
         window.blit(self.image, (self.x, self.y))

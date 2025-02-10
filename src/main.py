@@ -172,6 +172,7 @@ class Monster:
     
     def draw(self, window):
         window.blit(self.image, (self.x, self.y))
+        
 
 if __name__ == "__main__":
     game = Game()
