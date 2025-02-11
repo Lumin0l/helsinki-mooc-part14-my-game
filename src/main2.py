@@ -16,6 +16,7 @@ DOOR_LIFETIME = 5000  # Time in milliseconds (5 seconds)
 INITIAL_MONSTER_LIMIT = 3
 MONSTER_SPEED_RANGE = (2, 4)
 COIN_SPEED = 5
+COIN_SPAWN_INTERVAL = 10000  # Time in milliseconds (10 seconds)
 
 # Initialize game window
 class Game:
@@ -30,7 +31,9 @@ class Game:
         self.coins = []
         self.monster_limit = INITIAL_MONSTER_LIMIT
         self.start_time = pygame.time.get_ticks()
+        self.score = 0
         pygame.time.set_timer(pygame.USEREVENT, MONSTER_SPAWN_INTERVAL)
+        pygame.time.set_timer(pygame.USEREVENT + 1, COIN_SPAWN_INTERVAL)
     
     def run(self):
         while self.running:
@@ -46,6 +49,8 @@ class Game:
                 self.running = False
             elif event.type == pygame.USEREVENT:
                 self.spawn_door()
+            elif event.type == pygame.USEREVENT + 1:
+                self.spawn_coin()
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_SPACE:
                     self.shoot_coin()
@@ -59,11 +64,14 @@ class Game:
                 self.doors.remove(door)
         for monster in self.monsters[:]:
             monster.update(self.player.x, self.player.y)
+            if self.check_collision(monster, self.player):
+                self.game_over()
         for coin in self.coins[:]:
             coin.update()
             if coin.check_collision(self.monsters):
                 self.monsters.remove(coin.target)
                 self.coins.remove(coin)
+                self.score += 1
             if coin.check_collision_with_player(self.player):
                 self.player.coins += 1
                 self.coins.remove(coin)
@@ -80,6 +88,7 @@ class Game:
             monster.draw(self.window)
         for coin in self.coins:
             coin.draw(self.window)
+        self.draw_timer_and_score()
         pygame.display.flip()
     
     def spawn_door(self):
@@ -93,9 +102,13 @@ class Game:
     
     def shoot_coin(self):
         if self.player.coins > 0:
-            angle = self.player .arrow_angle
+            angle = self.player.arrow_angle
             self.coins.append(Coin(self.player.x, self.player.y, angle))
             self.player.coins -= 1
+    
+    def spawn_coin(self):
+        x, y = random.randint(0, WIDTH), random.randint(0, HEIGHT)
+        self.coins.append(Coin(x, y, 0))
     
     def get_random_border_position(self):
         side = random.choice(["top", "bottom", "left", "right"])
@@ -107,6 +120,21 @@ class Game:
             return 0, random.randint(0, HEIGHT)
         else:
             return WIDTH - 40, random.randint(0, HEIGHT)
+    
+    def check_collision(self, monster, player):
+        return abs(monster.x - player.x) < 20 and abs(monster.y - player.y) < 20
+    
+    def game_over(self):
+        self.running = False
+        print(f"Game Over! You lasted {pygame.time.get_ticks() - self.start_time} milliseconds and scored {self.score} points.")
+    
+    def draw_timer_and_score(self):
+        font = pygame.font.Font(None, 36)
+        elapsed_time = (pygame.time.get_ticks() - self.start_time) // 1000
+        timer_text = font.render(f"Time: {elapsed_time}s", True, (255, 255, 255))
+        score_text = font.render(f"Score: {self.score}", True, (255, 255, 255))
+        self.window.blit(timer_text, (WIDTH - 200, 10))
+        self.window.blit(score_text, (WIDTH - 200, 50))
 
 class Door:
     def __init__(self, x, y):
@@ -161,8 +189,8 @@ class Player:
         arrow_y = self.y + self.robot_height // 2 + ARROW_LENGTH * math.sin(math.radians(self.arrow_angle))
         
         pygame.draw.line(window, (255, 255, 255),
-                         (self.x + self.robot_width // 2, self.y + self.robot_height // 2),
-                         (arrow_x, arrow_y), 3)
+        (self.x + self.robot_width // 2, self.y + self.robot_height // 2),
+        (arrow_x, arrow_y), 3)
         
 class Monster:
     def __init__(self, x, y, behavior):
