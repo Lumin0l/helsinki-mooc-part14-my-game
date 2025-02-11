@@ -17,6 +17,7 @@ INITIAL_MONSTER_LIMIT = 3
 MONSTER_SPEED_RANGE = (2, 4)
 COIN_SPEED = 5
 COIN_SPAWN_INTERVAL = 10000  # Time in milliseconds (10 seconds)
+COIN_SPAWN_OFFSET = 20
 
 # Initialize game window
 class Game:
@@ -103,7 +104,9 @@ class Game:
     def shoot_coin(self):
         if self.player.coins > 0:
             angle = self.player.arrow_angle
-            self.coins.append(Coin(self.player.x + self.player.robot_width // 2, self.player.y + self.player.robot_height // 2, angle))
+            spawn_x = self.player.x + self.player.robot_width // 2 + COIN_SPAWN_OFFSET * math.cos(math.radians(angle))
+            spawn_y = self.player.y + self.player.robot_height // 2 + COIN_SPAWN_OFFSET * math.sin(math.radians(angle))
+            self.coins.append(Coin(spawn_x, spawn_y, angle))
             self.player.coins -= 1
     
     def spawn_coin(self):
