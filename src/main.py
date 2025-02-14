@@ -1,3 +1,11 @@
+### Disclaimer from Imanol, the creator ###
+# It was a challenge to make this game, and it is not perfect. There is no "win" condition—the objective is simply to last as long as possible, and that's it.
+# It has several flaws: the player can't shoot coins at certain angles (I did my best but couldn't figure it out), and the bottom of the screen is not properly bordered, so some sprites get cut off halfway.
+# Hitboxes are also not optimized, and only headshots count, which is a bit unfair.
+# Nonetheless, as a teacher once said, "Perfection is the enemy of completion," and I am uploading this on the eve of the last exam. So, I'm happy with the result, and I hope you enjoy it too.
+# Thank you for your time, and have a great day!
+
+
 import pygame
 import math
 import random
@@ -6,18 +14,32 @@ import random
 pygame.init()
 
 # Constants
-WIDTH, HEIGHT = 1080, 720  # Updated screen size
-BACKGROUND_COLOR = (139, 0, 0)  # Dark red for the carpet
+WIDTH, HEIGHT = 1080, 720
+BACKGROUND_COLOR = (139, 0, 0)
 PLAYER_SPEED = 3
-ARROW_LENGTH = 40  # Length of aim arrow
-ROTATION_SPEED = 3  # Speed of arrow rotation
-MONSTER_SPAWN_INTERVAL = 10000  # Time in milliseconds (10 seconds)
-DOOR_LIFETIME = 5000  # Time in milliseconds (5 seconds)
+ARROW_LENGTH = 40
+ROTATION_SPEED = 3
+MONSTER_SPAWN_INTERVAL = 10000  # Monsters take a bit to spawn, adjust if you want a more hardcore experience
+DOOR_LIFETIME = 5000
 INITIAL_MONSTER_LIMIT = 3
 MONSTER_SPEED_RANGE = (2, 4)
 COIN_SPEED = 5
-COIN_SPAWN_INTERVAL = 10000  # Time in milliseconds (10 seconds)
-COIN_SPAWN_OFFSET = 20
+COIN_SPAWN_INTERVAL = 10000
+COIN_SPAWN_OFFSET = 40
+# Double line breaks are intentional, text was a bit crowded otherwise
+STORY_STRING = """You are a trans-human who turned into a robot. But that had a cost.\n
+Now, those who lent you money to achieve this goal are coming to get their money back, AS GHOSTS!!!!\n
+It is your duty to repay your debts and enjoy life as a robot. In more "gamey" terms, you have to survive as long as possible."""
+MECHANICS_STRING = """Use arrow keys to move, A and D to aim, and SPACE to shoot coins.\n
+Coins can be used to hit the ghosts and send them to debt-collector heaven, they will also spawn at random locations every 10 seconds and can be collected by the robot.\n
+Totally on purpose *ahem* coins will only be collected or eliminate ghosts with headshots, so AIM FOR THE HEAD!!!\nGood luck!!"""
+FONT = pygame.font.Font(None, 36)
+
+# Game states
+START_SCREEN_PART1 = 0
+START_SCREEN_PART2 = 1
+GAME_RUNNING = 2
+GAME_OVER = 3
 
 # Initialize game window
 class Game:
@@ -26,6 +48,7 @@ class Game:
         pygame.display.set_caption("Robot Survival")
         self.clock = pygame.time.Clock()
         self.running = True
+        self.state = START_SCREEN_PART1
         self.player = Player(WIDTH // 2, HEIGHT // 2)
         self.monsters = []
         self.doors = []
@@ -48,49 +71,81 @@ class Game:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 self.running = False
-            elif event.type == pygame.USEREVENT:
-                self.spawn_door()
-            elif event.type == pygame.USEREVENT + 1:
-                self.spawn_coin()
-            elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_SPACE:
-                    self.shoot_coin()
+            elif self.state == GAME_RUNNING:
+                if event.type == pygame.USEREVENT:
+                    self.spawn_door()
+                elif event.type == pygame.USEREVENT + 1:
+                    self.spawn_coin()
+                elif event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_SPACE:
+                        self.shoot_coin()
+            elif self.state == START_SCREEN_PART1 or self.state == START_SCREEN_PART2:
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    self.handle_start_screen_click()
+            elif self.state == GAME_OVER:
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    self.handle_game_over_click()
     
     def update(self):
-        self.player.update()
-        for door in self.doors[:]:
-            door.update()
-            if door.timer_expired():
-                self.spawn_monster(door.x, door.y)
-                self.doors.remove(door)
-        for monster in self.monsters[:]:
-            monster.update(self.player.x, self.player.y)
-            if self.check_collision(monster, self.player):
-                self.game_over()
-        for coin in self.coins[:]:
-            coin.update()
-            if coin.check_collision(self.monsters):
-                self.monsters.remove(coin.target)
-                self.coins.remove(coin)
-                self.score += 1
-            if coin.check_collision_with_player(self.player):
-                self.player.coins += 1
-                self.coins.remove(coin)
-        # Increase monster limit every 30 seconds
-        elapsed_time = (pygame.time.get_ticks() - self.start_time) // 1000
-        self.monster_limit = INITIAL_MONSTER_LIMIT + (elapsed_time // 30)
+        if self.state == GAME_RUNNING:
+            self.player.update()
+            for door in self.doors[:]:
+                door.update()
+                if door.timer_expired():
+                    self.spawn_monster(door.x, door.y)
+                    self.doors.remove(door)
+            for monster in self.monsters[:]:
+                monster.update(self.player.x, self.player.y)
+                if self.check_collision(monster, self.player):
+                    self.game_over()
+            for coin in self.coins[:]:
+                coin.update()
+                if coin.check_collision(self.monsters):
+                    self.monsters.remove(coin.target)
+                    self.coins.remove(coin)
+                    self.score += 1
+                if coin.check_collision_with_player(self.player):
+                    self.player.coins += 1
+                    self.coins.remove(coin)
+            elapsed_time = (pygame.time.get_ticks() - self.start_time) // 1000
+            self.monster_limit = INITIAL_MONSTER_LIMIT + (elapsed_time // 30)
     
     def draw(self):
         self.window.fill(BACKGROUND_COLOR)
-        self.player.draw(self.window)
-        for door in self.doors:
-            door.draw(self.window)
-        for monster in self.monsters:
-            monster.draw(self.window)
-        for coin in self.coins:
-            coin.draw(self.window)
-        self.draw_timer_and_score()
+        if self.state == START_SCREEN_PART1:
+            self.draw_start_screen_part1()
+        elif self.state == START_SCREEN_PART2:
+            self.draw_start_screen_part2()
+        elif self.state == GAME_RUNNING:
+            self.player.draw(self.window)
+            for door in self.doors:
+                door.draw(self.window)
+            for monster in self.monsters:
+                monster.draw(self.window)
+            for coin in self.coins:
+                coin.draw(self.window)
+            self.draw_timer_and_score()
+        elif self.state == GAME_OVER:
+            self.draw_game_over_screen()
         pygame.display.flip()
+
+    # So silly, took me a while of messing with "f" before checking...: https://stackoverflow.com/questions/42014195/rendering-text-with-multiple-lines-in-pygame
+    def blit_text(self, surface, text, pos, font=FONT, color=(255, 255, 255)):
+        words = [word.split(' ') for word in text.splitlines()]  # 2D array where each row is a list of words.
+        space = font.size(' ')[0]  # The width of a space.
+        max_width, max_height = WIDTH, HEIGHT
+        x, y = pos
+        for line in words:
+            for word in line:
+                word_surface = font.render(word, 0, color)
+                word_width, word_height = word_surface.get_size()
+                if x + word_width >= max_width:
+                    x = pos[0]  # Reset the x.
+                    y += word_height  # Start on new row.
+                surface.blit(word_surface, (x, y))
+                x += word_width + space
+            x = pos[0]  # Reset the x.
+            y += word_height  # Start on new row.
     
     def spawn_door(self):
         if len(self.monsters) + len(self.doors) < self.monster_limit:
@@ -128,8 +183,8 @@ class Game:
         return abs(monster.x - player.x) < 20 and abs(monster.y - player.y) < 20
     
     def game_over(self):
-        self.running = False
-        print(f"Game Over! You lasted {pygame.time.get_ticks() - self.start_time} milliseconds and scored {self.score} points.")
+        self.state = GAME_OVER
+        self.end_time = pygame.time.get_ticks()
     
     def draw_timer_and_score(self):
         font = pygame.font.Font(None, 36)
@@ -138,6 +193,76 @@ class Game:
         score_text = font.render(f"Score: {self.score}", True, (255, 255, 255))
         self.window.blit(timer_text, (WIDTH - 200, 10))
         self.window.blit(score_text, (WIDTH - 200, 50))
+    
+    def draw_start_screen_part1(self):
+        font = pygame.font.Font(None, 74)
+        title_text = font.render("Robot Payback", True, (255, 255, 255))
+        self.window.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, HEIGHT // 4))
+        font = pygame.font.Font(None, 36)
+        self.blit_text(self.window, STORY_STRING, (150, 260))
+        continue_button = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 50)
+        pygame.draw.rect(self.window, ( 28, 173, 52 ), continue_button)
+        continue_text = font.render("Continue", True, (255, 255, 255))
+        self.window.blit(continue_text, (continue_button.x + 50, continue_button.y + 10))
+
+    def draw_start_screen_part2(self):
+        font = pygame.font.Font(None, 36)
+        self.blit_text(self.window, MECHANICS_STRING, (100, 150))        
+        start_button = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 50)
+        pygame.draw.rect(self.window, (28, 173, 52), start_button)
+        start_text = font.render("Start", True, (255, 255, 255))
+        self.window.blit(start_text, (start_button.x + 50, start_button.y + 10))
+    
+    def draw_game_over_screen(self):
+        font = pygame.font.Font(None, 74)
+        game_over_text = font.render("Game Over", True, (255, 255, 255))
+        self.window.blit(game_over_text, (WIDTH // 2 - game_over_text.get_width() // 2, HEIGHT // 4))
+        
+        font = pygame.font.Font(None, 36)
+        elapsed_time = (self.end_time - self.start_time) // 1000
+        stats_text = font.render(f"Time: {elapsed_time}s, Score: {self.score}", True, (255, 255, 255))
+        self.window.blit(stats_text, (WIDTH // 2 - stats_text.get_width() // 2, HEIGHT // 2))
+        
+        restart_button = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 50)
+        pygame.draw.rect(self.window, (0, 255, 0), restart_button)
+        restart_text = font.render("Restart", True, (0, 0, 0))
+        self.window.blit(restart_text, (restart_button.x + 50, restart_button.y + 10))
+        
+        exit_button = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 200, 200, 50)
+        pygame.draw.rect(self.window, (255, 0, 0), exit_button)
+        exit_text = font.render("Exit", True, (0, 0, 0))
+        self.window.blit(exit_text, (exit_button.x + 70, exit_button.y + 10))
+    
+    def handle_start_screen_click(self):
+        mouse_pos = pygame.mouse.get_pos()
+        if self.state == START_SCREEN_PART1:
+            continue_button = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 50)
+            if continue_button.collidepoint(mouse_pos):
+                self.state = START_SCREEN_PART2
+        elif self.state == START_SCREEN_PART2:
+            start_button = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 50)
+            if start_button.collidepoint(mouse_pos):
+                self.state = GAME_RUNNING
+                self.start_time = pygame.time.get_ticks()
+    
+    def handle_game_over_click(self):
+        mouse_pos = pygame.mouse.get_pos()
+        restart_button = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 100, 200, 50)
+        exit_button = pygame.Rect(WIDTH // 2 - 100, HEIGHT // 2 + 200, 200, 50)
+        if restart_button.collidepoint(mouse_pos):
+            self.reset_game()
+        elif exit_button.collidepoint(mouse_pos):
+            self.running = False
+    
+    def reset_game(self):
+        self.player = Player(WIDTH // 2, HEIGHT // 2)
+        self.monsters = []
+        self.doors = []
+        self.coins = []
+        self.monster_limit = INITIAL_MONSTER_LIMIT
+        self.start_time = pygame.time.get_ticks()
+        self.score = 0
+        self.state = GAME_RUNNING
 
 class Door:
     def __init__(self, x, y):
@@ -147,7 +272,7 @@ class Door:
         self.image = pygame.image.load("door.png")
     
     def update(self):
-        pass  # No movement or logic needed for the door itself
+        pass
     
     def timer_expired(self):
         return pygame.time.get_ticks() - self.spawn_time >= DOOR_LIFETIME
@@ -168,7 +293,6 @@ class Player:
     def update(self):
         keys = pygame.key.get_pressed()
         
-        # Player movement logic
         if keys[pygame.K_LEFT] and self.x > 0:
             self.x -= PLAYER_SPEED
         if keys[pygame.K_RIGHT] and self.x < WIDTH - self.robot_width:
@@ -178,7 +302,6 @@ class Player:
         if keys[pygame.K_DOWN] and self.y < HEIGHT - self.robot_height:
             self.y += PLAYER_SPEED
         
-        # Aim arrow rotation logic
         if keys[pygame.K_a]:
             self.arrow_angle -= ROTATION_SPEED
         if keys[pygame.K_d]:
@@ -239,7 +362,6 @@ class Coin:
         self.x += self.speed_x
         self.y += self.speed_y
 
-        # Bounce off walls correctly
         if self.x <= 0 or self.x >= WIDTH - self.image.get_width():
             self.speed_x = -self.speed_x
         if self.y <= 0 or self.y >= HEIGHT - self.image.get_height():
